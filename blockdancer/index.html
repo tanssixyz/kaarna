@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>blockdancer</title>
+  <meta name="description" content="Dancer, choreographer, builder. Co-creator of Improtango." />
+  <meta property="og:title" content="blockdancer" />
+  <meta property="og:description" content="Dancer, choreographer, builder. Co-creator of Improtango." />
+  <meta name="theme-color" content="#0e0e11" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+
+    :root {
+      --text: #9ca3af;
+      --text-h: #f3f4f6;
+      --bg: #0e0e11;
+      --bg-surface: #16171d;
+      --border-soft: #222330;
+      --accent: #a855f7;
+      --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
+      --mono: ui-monospace, 'JetBrains Mono', Consolas, monospace;
+    }
+
+    html, body {
+      margin: 0;
+      padding: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--sans);
+      font-size: 16px;
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+      min-height: 100vh;
+    }
+
+    #app {
+      max-width: 480px;
+      margin: 0 auto;
+      padding: 0 24px;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    header {
+      padding: 48px 0 40px;
+      border-bottom: 1px solid var(--border-soft);
+    }
+
+    .name {
+      font-family: var(--mono);
+      font-size: 22px;
+      font-weight: 500;
+      color: var(--text-h);
+      letter-spacing: -0.3px;
+      margin: 0 0 20px;
+    }
+
+    .bio {
+      font-size: 14px;
+      color: var(--text);
+      line-height: 1.75;
+      margin: 0;
+      max-width: 380px;
+    }
+
+    main {
+      flex: 1;
+      padding: 40px 0;
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+    }
+
+    .section-label {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--text);
+      opacity: 0.4;
+      letter-spacing: 0.08em;
+      margin: 0 0 8px;
+    }
+
+    .link-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 14px 0;
+      border-bottom: 1px solid var(--border-soft);
+      text-decoration: none;
+      color: var(--text);
+      font-size: 14px;
+      transition: color 0.15s;
+    }
+
+    .link-row:last-child {
+      border-bottom: none;
+    }
+
+    .link-row:hover {
+      color: var(--text-h);
+    }
+
+    .link-label {
+      flex: 1;
+    }
+
+    .link-sub {
+      font-size: 12px;
+      font-family: var(--mono);
+      opacity: 0.4;
+    }
+
+    .link-arrow {
+      font-size: 14px;
+      opacity: 0.3;
+      transition: opacity 0.15s, transform 0.15s;
+    }
+
+    .link-row:hover .link-arrow {
+      opacity: 0.7;
+      transform: translateX(3px);
+    }
+
+    .spacer {
+      height: 32px;
+    }
+
+    footer {
+      padding: 20px 0 36px;
+      border-top: 1px solid var(--border-soft);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .back {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--text);
+      opacity: 0.3;
+      text-decoration: none;
+      transition: opacity 0.15s;
+    }
+
+    .back:hover {
+      opacity: 0.7;
+    }
+
+    .dot {
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+      background: var(--accent);
+      opacity: 0.4;
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+
+    <header>
+      <p class="name">blockdancer</p>
+      <p class="bio">
+        Dancer, choreographer, builder.<br>
+        Co-creator of Improtango — an improvisational
+        partner dance methodology developed over thirty years.<br><br>
+        Currently exploring what happens when embodied knowledge
+        meets on-chain infrastructure.
+        Kaarna is the current work.
+      </p>
+    </header>
+
+    <main>
+
+      <p class="section-label" style="margin-top: 8px;">work</p>
+      <a class="link-row" href="https://kaarna.xyz">
+        <span class="link-label">kaarna</span>
+        <span class="link-sub">on-chain gestures</span>
+        <span class="link-arrow">→</span>
+      </a>
+      <a class="link-row" href="https://hiven.space" target="_blank" rel="noreferrer">
+        <span class="link-label">hiven</span>
+        <span class="link-sub">Base mainnet</span>
+        <span class="link-arrow">→</span>
+      </a>
+
+      <div class="spacer"></div>
+
+      <p class="section-label">writing</p>
+      <a class="link-row" href="https://paragraph.xyz/@blockdancer" target="_blank" rel="noreferrer">
+        <span class="link-label">encounter contract</span>
+        <span class="link-sub">paragraph</span>
+        <span class="link-arrow">→</span>
+      </a>
+      <a class="link-row" href="https://substack.com/@blockdancer" target="_blank" rel="noreferrer">
+        <span class="link-label">substack</span>
+        <span class="link-sub">@blockdancer</span>
+        <span class="link-arrow">→</span>
+      </a>
+
+      <div class="spacer"></div>
+
+      <p class="section-label">elsewhere</p>
+      <a class="link-row" href="https://farcaster.xyz/blockdancer" target="_blank" rel="noreferrer">
+        <span class="link-label">farcaster</span>
+        <span class="link-sub">@blockdancer</span>
+        <span class="link-arrow">→</span>
+      </a>
+
+    </main>
+
+    <footer>
+      <a class="back" href="https://kaarna.xyz">← kaarna.xyz</a>
+      <div class="dot"></div>
+    </footer>
+
+  </div>
+</body>
+</html>
