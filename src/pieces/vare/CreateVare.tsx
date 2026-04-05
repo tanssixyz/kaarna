@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useAccount, useWriteContract, useWaitForTransactionReceipt } from "wagmi"
 import { useConnectModal } from "@rainbow-me/rainbowkit"
 import type { Abi } from "viem"
@@ -21,10 +21,17 @@ export function CreateVare({ onDeployed }: { onDeployed: () => void }) {
     hash: txHash, query: { enabled: !!txHash },
   })
 
-  if (isSuccess && txHash) {
-    setTxHash(undefined); setTitle(""); setUrl(""); setDuration(SEVEN_DAYS); setOpen(false)
-    onDeployed()
-  }
+  // Reset and notify parent after successful deploy — must be in useEffect, not render
+  useEffect(() => {
+    if (isSuccess && txHash) {
+      setTxHash(undefined)
+      setTitle("")
+      setUrl("")
+      setDuration(SEVEN_DAYS)
+      setOpen(false)
+      onDeployed()
+    }
+  }, [isSuccess, txHash, onDeployed])
 
   const handleDeploy = () => {
     if (!isConnected) { openConnectModal?.(); return }

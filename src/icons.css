@@ -1,0 +1,22 @@
+/* ── Piece mark icons — appended ─────────────────────────────────────────────*/
+/* Override baseline so icon sits vertically centred with the text */
+.piece-entry { align-items: center; }
+
+.piece-entry-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--text);
+  transition: color 0.12s;
+}
+
+.piece-entry-name svg {
+  flex-shrink: 0;
+  opacity: 0.75;
+  transition: opacity 0.12s;
+}
+
+.piece-entry:hover .piece-entry-name svg { opacity: 1; }
+.piece-entry--dormant .piece-entry-name svg { opacity: 0.4; }

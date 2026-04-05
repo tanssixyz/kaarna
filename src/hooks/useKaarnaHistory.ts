@@ -27,11 +27,7 @@ export type KaarnaHistory = {
   total: number
 }
 
-// ── Deploy blocks — verified from broadcast receipts ──────────────────────────
-// hiven:  0x29b8d31 = 43,748,657
-// kaipuu: 0x29d4f5d = 43,863,901
-// vare:   0x2a01376 = 44,045,174
-// polku:  0x2a20f1e = 44,175,134
+// ── Deploy blocks ─────────────────────────────────────────────────────────────
 
 const DEPLOY_BLOCKS = {
   hiven:  43_748_657n,
@@ -43,7 +39,7 @@ const DEPLOY_BLOCKS = {
 const CHUNK = 9_000n
 const MAX_RETRIES = 3
 const RETRY_DELAY_MS = 2_000
-const INTER_CHUNK_DELAY_MS = 100  // brief pause between chunks to avoid rate limits
+const INTER_CHUNK_DELAY_MS = 80
 
 // ── ABI event items ───────────────────────────────────────────────────────────
 
@@ -126,18 +122,98 @@ async function paginate(
   let from = fromBlock
   while (from <= toBlock) {
     const to = from + CHUNK - 1n <= toBlock ? from + CHUNK - 1n : toBlock
-    const logs = await getLogsWithRetry(client, {
-      address,
-      event,
-      fromBlock: from,
-      toBlock: to,
-    })
+    const logs = await getLogsWithRetry(client, { address, event, fromBlock: from, toBlock: to })
     results.push(...logs)
     from = to + 1n
-    // small pause between chunks so we don't burst the RPC rate limit
     if (from <= toBlock) await sleep(INTER_CHUNK_DELAY_MS)
   }
   return results
+}
+
+// ── Per-piece scanners ────────────────────────────────────────────────────────
+
+async function scanHiven(client: Client, addr: string, latest: bigint): Promise<KaarnaEvent[]> {
+  const collected: KaarnaEvent[] = []
+  const logs = await paginate(client, HIVEN_ADDRESS, EV_HIVEN_INITIATED, DEPLOY_BLOCKS.hiven, latest)
+  for (const log of logs) {
+    const initiator = log.args["initiator"] as Address | undefined
+    const receiver  = log.args["receiver"]  as Address | undefined
+    if (initiator?.toLowerCase() === addr) {
+      collected.push({ piece: "hiven", kind: "sent", timestamp: 0n, blockNumber: log.blockNumber ?? 0n, txHash: log.transactionHash ?? "0x0", data: receiver ? { to: receiver } : undefined })
+    }
+    if (receiver?.toLowerCase() === addr) {
+      collected.push({ piece: "hiven", kind: "received", timestamp: 0n, blockNumber: log.blockNumber ?? 0n, txHash: log.transactionHash ?? "0x0", data: initiator ? { from: initiator } : undefined })
+    }
+  }
+  // Resolve block timestamps (Hiven has no timestamp in event)
+  const pending = collected.filter(e => e.timestamp === 0n)
+  if (pending.length > 0) {
+    const uniqueBlocks = [...new Set(pending.map(e => e.blockNumber))]
+    const blockResults = await Promise.allSettled(uniqueBlocks.map(bn => client.getBlock({ blockNumber: bn })))
+    const ts: Record<string, bigint> = {}
+    for (let i = 0; i < uniqueBlocks.length; i++) {
+      const r = blockResults[i]
+      if (r.status === "fulfilled") ts[uniqueBlocks[i].toString()] = r.value.timestamp
+    }
+    for (const e of collected) {
+      if (e.timestamp === 0n) e.timestamp = ts[e.blockNumber.toString()] ?? 0n
+    }
+  }
+  return collected
+}
+
+async function scanKaipuu(client: Client, addr: string, latest: bigint): Promise<KaarnaEvent[]> {
+  const collected: KaarnaEvent[] = []
+  const logs = await paginate(client, KAIPUU_ADDRESS, EV_KAIPUU_MARKED, DEPLOY_BLOCKS.kaipuu, latest)
+  for (const log of logs) {
+    const marker    = log.args["marker"]    as Address | undefined
+    const timestamp = log.args["timestamp"] as bigint  | undefined
+    if (marker?.toLowerCase() !== addr) continue
+    collected.push({ piece: "kaipuu", kind: "marked", timestamp: timestamp ?? 0n, blockNumber: log.blockNumber ?? 0n, txHash: log.transactionHash ?? "0x0" })
+  }
+  return collected
+}
+
+async function scanVare(client: Client, addr: string, latest: bigint): Promise<KaarnaEvent[]> {
+  const collected: KaarnaEvent[] = []
+  const vareLogs = await paginate(client, VARE_FACTORY_ADDRESS, EV_FACTORY_DEPLOYED, DEPLOY_BLOCKS.vare, latest)
+  const vareTitles: Record<string, string> = {}
+  const vareAddresses: Address[] = []
+  for (const vl of vareLogs) {
+    const vare  = vl.args["vare"]  as Address | undefined
+    const title = vl.args["title"] as string  | undefined
+    if (vare) { vareAddresses.push(vare); vareTitles[vare.toLowerCase()] = title ?? "" }
+  }
+  if (vareAddresses.length > 0) {
+    const results = await Promise.allSettled(
+      vareAddresses.map(vare => paginate(client, vare, EV_VARE_MARKED, DEPLOY_BLOCKS.vare, latest))
+    )
+    for (let i = 0; i < results.length; i++) {
+      const r = results[i]
+      if (r.status === "rejected") continue
+      const title = vareTitles[vareAddresses[i].toLowerCase()] ?? ""
+      for (const log of r.value) {
+        const marker    = log.args["marker"]    as Address | undefined
+        const timestamp = log.args["timestamp"] as bigint  | undefined
+        if (marker?.toLowerCase() !== addr) continue
+        collected.push({ piece: "vare", kind: "gathered", timestamp: timestamp ?? 0n, blockNumber: log.blockNumber ?? 0n, txHash: log.transactionHash ?? "0x0", data: title ? { title } : undefined })
+      }
+    }
+  }
+  return collected
+}
+
+async function scanPolku(client: Client, addr: string, latest: bigint): Promise<KaarnaEvent[]> {
+  const collected: KaarnaEvent[] = []
+  const logs = await paginate(client, POLKU_ADDRESS, EV_POLKU_WALKED, DEPLOY_BLOCKS.polku, latest)
+  for (const log of logs) {
+    const walker    = log.args["walker"]    as Address | undefined
+    const timestamp = log.args["timestamp"] as bigint  | undefined
+    const carried   = log.args["carried"]   as string  | undefined
+    if (walker?.toLowerCase() !== addr) continue
+    collected.push({ piece: "polku", kind: "walked", timestamp: timestamp ?? 0n, blockNumber: log.blockNumber ?? 0n, txHash: log.transactionHash ?? "0x0", data: carried ? { carried } : undefined })
+  }
+  return collected
 }
 
 // ── Hook ──────────────────────────────────────────────────────────────────────
@@ -163,127 +239,21 @@ export function useKaarnaHistory(address: Address | undefined): KaarnaHistory {
       setError(null)
 
       try {
-        const collected: KaarnaEvent[] = []
         const latest = await c.getBlockNumber()
         const addr = wallet.toLowerCase()
 
-        // ── Hiven ────────────────────────────────────────────────────────────
-        const hivenLogs = await paginate(c, HIVEN_ADDRESS, EV_HIVEN_INITIATED, DEPLOY_BLOCKS.hiven, latest)
-        for (const log of hivenLogs) {
-          const initiator = log.args["initiator"] as Address | undefined
-          const receiver  = log.args["receiver"]  as Address | undefined
-          if (initiator?.toLowerCase() === addr) {
-            collected.push({
-              piece: "hiven", kind: "sent", timestamp: 0n,
-              blockNumber: log.blockNumber ?? 0n,
-              txHash: log.transactionHash ?? "0x0",
-              data: receiver ? { to: receiver } : undefined,
-            })
-          }
-          if (receiver?.toLowerCase() === addr) {
-            collected.push({
-              piece: "hiven", kind: "received", timestamp: 0n,
-              blockNumber: log.blockNumber ?? 0n,
-              txHash: log.transactionHash ?? "0x0",
-              data: initiator ? { from: initiator } : undefined,
-            })
-          }
-        }
-
-        // ── Kaipuu ───────────────────────────────────────────────────────────
-        const kaipuuLogs = await paginate(c, KAIPUU_ADDRESS, EV_KAIPUU_MARKED, DEPLOY_BLOCKS.kaipuu, latest)
-        for (const log of kaipuuLogs) {
-          const marker    = log.args["marker"]    as Address | undefined
-          const timestamp = log.args["timestamp"] as bigint  | undefined
-          if (marker?.toLowerCase() !== addr) continue
-          collected.push({
-            piece: "kaipuu", kind: "marked",
-            timestamp: timestamp ?? 0n,
-            blockNumber: log.blockNumber ?? 0n,
-            txHash: log.transactionHash ?? "0x0",
-          })
-        }
-
-        // ── Väre ─────────────────────────────────────────────────────────────
-        const vareLogs = await paginate(c, VARE_FACTORY_ADDRESS, EV_FACTORY_DEPLOYED, DEPLOY_BLOCKS.vare, latest)
-        const vareTitles: Record<string, string> = {}
-        const vareAddresses: Address[] = []
-        for (const vl of vareLogs) {
-          const vare  = vl.args["vare"]  as Address | undefined
-          const title = vl.args["title"] as string  | undefined
-          if (vare) {
-            vareAddresses.push(vare)
-            vareTitles[vare.toLowerCase()] = title ?? ""
-          }
-        }
-
-        if (vareAddresses.length > 0) {
-          const vareResults = await Promise.allSettled(
-            vareAddresses.map((vare) =>
-              paginate(c, vare, EV_VARE_MARKED, DEPLOY_BLOCKS.vare, latest)
-            )
-          )
-          for (let i = 0; i < vareResults.length; i++) {
-            const r = vareResults[i]
-            if (r.status === "rejected") continue
-            const title = vareTitles[vareAddresses[i].toLowerCase()] ?? ""
-            for (const log of r.value) {
-              const marker    = log.args["marker"]    as Address | undefined
-              const timestamp = log.args["timestamp"] as bigint  | undefined
-              if (marker?.toLowerCase() !== addr) continue
-              collected.push({
-                piece: "vare", kind: "gathered",
-                timestamp: timestamp ?? 0n,
-                blockNumber: log.blockNumber ?? 0n,
-                txHash: log.transactionHash ?? "0x0",
-                data: title ? { title } : undefined,
-              })
-            }
-          }
-        }
-
-        // ── Polku ────────────────────────────────────────────────────────────
-        const polkuLogs = await paginate(c, POLKU_ADDRESS, EV_POLKU_WALKED, DEPLOY_BLOCKS.polku, latest)
-        for (const log of polkuLogs) {
-          const walker    = log.args["walker"]    as Address | undefined
-          const timestamp = log.args["timestamp"] as bigint  | undefined
-          const carried   = log.args["carried"]   as string  | undefined
-          if (walker?.toLowerCase() !== addr) continue
-          collected.push({
-            piece: "polku", kind: "walked",
-            timestamp: timestamp ?? 0n,
-            blockNumber: log.blockNumber ?? 0n,
-            txHash: log.transactionHash ?? "0x0",
-            data: carried ? { carried } : undefined,
-          })
-        }
-
-        // ── Resolve Hiven block timestamps ───────────────────────────────────
-        const hivenPending = collected.filter(
-          (e) => e.piece === "hiven" && e.timestamp === 0n
-        )
-        if (hivenPending.length > 0) {
-          const uniqueBlocks = [...new Set(hivenPending.map((e) => e.blockNumber))]
-          const blockResults = await Promise.allSettled(
-            uniqueBlocks.map((bn) => c.getBlock({ blockNumber: bn }))
-          )
-          const ts: Record<string, bigint> = {}
-          for (let i = 0; i < uniqueBlocks.length; i++) {
-            const r = blockResults[i]
-            if (r.status === "fulfilled") ts[uniqueBlocks[i].toString()] = r.value.timestamp
-          }
-          for (const e of collected) {
-            if (e.piece === "hiven" && e.timestamp === 0n) {
-              e.timestamp = ts[e.blockNumber.toString()] ?? 0n
-            }
-          }
-        }
+        // Run all four scanners in parallel — independent of each other
+        const [hivenEvents, kaipuuEvents, vareEvents, polkuEvents] = await Promise.all([
+          scanHiven(c, addr, latest),
+          scanKaipuu(c, addr, latest),
+          scanVare(c, addr, latest),
+          scanPolku(c, addr, latest),
+        ])
 
         if (!cancelled) {
-          collected.sort((a, b) =>
-            b.timestamp > a.timestamp ? 1 : b.timestamp < a.timestamp ? -1 : 0
-          )
-          setEvents(collected)
+          const all = [...hivenEvents, ...kaipuuEvents, ...vareEvents, ...polkuEvents]
+          all.sort((a, b) => b.timestamp > a.timestamp ? 1 : b.timestamp < a.timestamp ? -1 : 0)
+          setEvents(all)
         }
       } catch (err) {
         if (!cancelled) {

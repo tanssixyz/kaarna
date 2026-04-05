@@ -7,6 +7,7 @@ import { BrowserRouter } from "react-router-dom"
 import { Analytics } from "@vercel/analytics/react"
 import "@rainbow-me/rainbowkit/styles.css"
 import "./index.css"
+import "./icons.css"
 import App from "./App.tsx"
 import { config } from "./wagmi.ts"
 
