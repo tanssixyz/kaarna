@@ -1,0 +1,6 @@
+[
+  { "type": "function", "name": "title", "inputs": [], "outputs": [{ "name": "", "type": "string" }], "stateMutability": "view" },
+  { "type": "function", "name": "markCount", "inputs": [], "outputs": [{ "name": "", "type": "uint256" }], "stateMutability": "view" },
+  { "type": "function", "name": "isClosed", "inputs": [], "outputs": [{ "name": "", "type": "bool" }], "stateMutability": "view" },
+  { "type": "event", "name": "Marked", "inputs": [{ "name": "id", "type": "uint256", "indexed": true }, { "name": "marker", "type": "address", "indexed": true }, { "name": "timestamp", "type": "uint256", "indexed": false }], "anonymous": false }
+]

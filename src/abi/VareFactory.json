@@ -1,0 +1,5 @@
+[
+  { "type": "function", "name": "getAllVares", "inputs": [], "outputs": [{ "name": "", "type": "address[]" }], "stateMutability": "view" },
+  { "type": "function", "name": "vareCount", "inputs": [], "outputs": [{ "name": "", "type": "uint256" }], "stateMutability": "view" },
+  { "type": "event", "name": "VareDeployed", "inputs": [{ "name": "vare", "type": "address", "indexed": true }, { "name": "creator", "type": "address", "indexed": true }, { "name": "title", "type": "string", "indexed": false }, { "name": "url", "type": "string", "indexed": false }, { "name": "duration", "type": "uint256", "indexed": false }, { "name": "deployedAt", "type": "uint256", "indexed": false }], "anonymous": false }
+]

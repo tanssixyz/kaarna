@@ -1,0 +1,35 @@
+[
+  {
+    "type": "function",
+    "name": "initiate",
+    "inputs": [{ "name": "receiver", "type": "address" }],
+    "outputs": [{ "name": "", "type": "uint256" }],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "acknowledge",
+    "inputs": [{ "name": "id", "type": "uint256" }],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "event",
+    "name": "Initiated",
+    "inputs": [
+      { "name": "id", "type": "uint256", "indexed": true },
+      { "name": "initiator", "type": "address", "indexed": false },
+      { "name": "receiver", "type": "address", "indexed": false }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "Marked",
+    "inputs": [
+      { "name": "id", "type": "uint256", "indexed": true },
+      { "name": "timestamp", "type": "uint256", "indexed": false }
+    ],
+    "anonymous": false
+  }
+]
