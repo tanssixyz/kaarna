@@ -21,7 +21,6 @@ export function CreateVare({ onDeployed }: { onDeployed: () => void }) {
     hash: txHash, query: { enabled: !!txHash },
   })
 
-  // Reset and notify parent after successful deploy — must be in useEffect, not render
   useEffect(() => {
     if (isSuccess && txHash) {
       setTxHash(undefined)
@@ -49,7 +48,10 @@ export function CreateVare({ onDeployed }: { onDeployed: () => void }) {
 
   if (!open) {
     return (
-      <button className="p-ghost" onClick={() => isConnected ? setOpen(true) : openConnectModal?.()}>
+      <button
+        className="p-create-toggle"
+        onClick={() => isConnected ? setOpen(true) : openConnectModal?.()}
+      >
         + create väre
       </button>
     )
