@@ -28,6 +28,10 @@ export type KaarnaHistory = {
 }
 
 // ── Deploy blocks ─────────────────────────────────────────────────────────────
+// hiven:  0x29b8d31 = 43,748,657
+// kaipuu: 0x29d4f5d = 43,863,901
+// vare:   0x2a01376 = 44,045,174
+// polku:  0x2a20f1e = 44,175,134
 
 const DEPLOY_BLOCKS = {
   hiven:  43_748_657n,
@@ -36,10 +40,12 @@ const DEPLOY_BLOCKS = {
   polku:  44_175_134n,
 } as const
 
-const CHUNK = 9_000n
+// Alchemy supports large block ranges — use 50k chunks to minimise round trips.
+// Falls back gracefully: if the RPC rejects the range, retry with a smaller chunk.
+const CHUNK_PRIMARY   = 50_000n
+const CHUNK_FALLBACK  =  9_000n
 const MAX_RETRIES = 3
 const RETRY_DELAY_MS = 2_000
-const INTER_CHUNK_DELAY_MS = 80
 
 // ── ABI event items ───────────────────────────────────────────────────────────
 
@@ -111,6 +117,7 @@ async function getLogsWithRetry(
   }
 }
 
+// Try with large chunks first; if RPC rejects the range, fall back to small chunks
 async function paginate(
   client: Client,
   address: Address | Address[],
@@ -118,14 +125,28 @@ async function paginate(
   fromBlock: bigint,
   toBlock: bigint
 ): Promise<DecodedLog[]> {
+  // Probe with the first chunk — if it fails with a range error, switch to fallback size
+  const firstTo = fromBlock + CHUNK_PRIMARY - 1n <= toBlock
+    ? fromBlock + CHUNK_PRIMARY - 1n
+    : toBlock
+
+  let chunk = CHUNK_PRIMARY
+  try {
+    await client.getLogs({ address, event, fromBlock, toBlock: firstTo })
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : ""
+    if (msg.includes("range") || msg.includes("10,000") || msg.includes("limited")) {
+      chunk = CHUNK_FALLBACK
+    }
+  }
+
   const results: DecodedLog[] = []
   let from = fromBlock
   while (from <= toBlock) {
-    const to = from + CHUNK - 1n <= toBlock ? from + CHUNK - 1n : toBlock
+    const to = from + chunk - 1n <= toBlock ? from + chunk - 1n : toBlock
     const logs = await getLogsWithRetry(client, { address, event, fromBlock: from, toBlock: to })
     results.push(...logs)
     from = to + 1n
-    if (from <= toBlock) await sleep(INTER_CHUNK_DELAY_MS)
   }
   return results
 }
@@ -139,17 +160,29 @@ async function scanHiven(client: Client, addr: string, latest: bigint): Promise<
     const initiator = log.args["initiator"] as Address | undefined
     const receiver  = log.args["receiver"]  as Address | undefined
     if (initiator?.toLowerCase() === addr) {
-      collected.push({ piece: "hiven", kind: "sent", timestamp: 0n, blockNumber: log.blockNumber ?? 0n, txHash: log.transactionHash ?? "0x0", data: receiver ? { to: receiver } : undefined })
+      collected.push({
+        piece: "hiven", kind: "sent", timestamp: 0n,
+        blockNumber: log.blockNumber ?? 0n,
+        txHash: log.transactionHash ?? "0x0",
+        data: receiver ? { to: receiver } : undefined,
+      })
     }
     if (receiver?.toLowerCase() === addr) {
-      collected.push({ piece: "hiven", kind: "received", timestamp: 0n, blockNumber: log.blockNumber ?? 0n, txHash: log.transactionHash ?? "0x0", data: initiator ? { from: initiator } : undefined })
+      collected.push({
+        piece: "hiven", kind: "received", timestamp: 0n,
+        blockNumber: log.blockNumber ?? 0n,
+        txHash: log.transactionHash ?? "0x0",
+        data: initiator ? { from: initiator } : undefined,
+      })
     }
   }
   // Resolve block timestamps (Hiven has no timestamp in event)
   const pending = collected.filter(e => e.timestamp === 0n)
   if (pending.length > 0) {
     const uniqueBlocks = [...new Set(pending.map(e => e.blockNumber))]
-    const blockResults = await Promise.allSettled(uniqueBlocks.map(bn => client.getBlock({ blockNumber: bn })))
+    const blockResults = await Promise.allSettled(
+      uniqueBlocks.map(bn => client.getBlock({ blockNumber: bn }))
+    )
     const ts: Record<string, bigint> = {}
     for (let i = 0; i < uniqueBlocks.length; i++) {
       const r = blockResults[i]
@@ -169,7 +202,12 @@ async function scanKaipuu(client: Client, addr: string, latest: bigint): Promise
     const marker    = log.args["marker"]    as Address | undefined
     const timestamp = log.args["timestamp"] as bigint  | undefined
     if (marker?.toLowerCase() !== addr) continue
-    collected.push({ piece: "kaipuu", kind: "marked", timestamp: timestamp ?? 0n, blockNumber: log.blockNumber ?? 0n, txHash: log.transactionHash ?? "0x0" })
+    collected.push({
+      piece: "kaipuu", kind: "marked",
+      timestamp: timestamp ?? 0n,
+      blockNumber: log.blockNumber ?? 0n,
+      txHash: log.transactionHash ?? "0x0",
+    })
   }
   return collected
 }
@@ -196,7 +234,13 @@ async function scanVare(client: Client, addr: string, latest: bigint): Promise<K
         const marker    = log.args["marker"]    as Address | undefined
         const timestamp = log.args["timestamp"] as bigint  | undefined
         if (marker?.toLowerCase() !== addr) continue
-        collected.push({ piece: "vare", kind: "gathered", timestamp: timestamp ?? 0n, blockNumber: log.blockNumber ?? 0n, txHash: log.transactionHash ?? "0x0", data: title ? { title } : undefined })
+        collected.push({
+          piece: "vare", kind: "gathered",
+          timestamp: timestamp ?? 0n,
+          blockNumber: log.blockNumber ?? 0n,
+          txHash: log.transactionHash ?? "0x0",
+          data: title ? { title } : undefined,
+        })
       }
     }
   }
@@ -211,7 +255,13 @@ async function scanPolku(client: Client, addr: string, latest: bigint): Promise<
     const timestamp = log.args["timestamp"] as bigint  | undefined
     const carried   = log.args["carried"]   as string  | undefined
     if (walker?.toLowerCase() !== addr) continue
-    collected.push({ piece: "polku", kind: "walked", timestamp: timestamp ?? 0n, blockNumber: log.blockNumber ?? 0n, txHash: log.transactionHash ?? "0x0", data: carried ? { carried } : undefined })
+    collected.push({
+      piece: "polku", kind: "walked",
+      timestamp: timestamp ?? 0n,
+      blockNumber: log.blockNumber ?? 0n,
+      txHash: log.transactionHash ?? "0x0",
+      data: carried ? { carried } : undefined,
+    })
   }
   return collected
 }
@@ -242,7 +292,7 @@ export function useKaarnaHistory(address: Address | undefined): KaarnaHistory {
         const latest = await c.getBlockNumber()
         const addr = wallet.toLowerCase()
 
-        // Run all four scanners in parallel — independent of each other
+        // All four scanners run in parallel
         const [hivenEvents, kaipuuEvents, vareEvents, polkuEvents] = await Promise.all([
           scanHiven(c, addr, latest),
           scanKaipuu(c, addr, latest),

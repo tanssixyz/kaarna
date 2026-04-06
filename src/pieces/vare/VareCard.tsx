@@ -9,16 +9,27 @@ export function VareCard({ address }: { address: `0x${string}` }) {
   const navigate = useNavigate()
   const abi = VareABI as Abi
 
-  const { data } = useReadContracts({
+  const { data, isLoading } = useReadContracts({
     contracts: [
       { address, abi, functionName: "title",     chainId: ACTIVE_CHAIN.id },
       { address, abi, functionName: "isOpen",    chainId: ACTIVE_CHAIN.id },
       { address, abi, functionName: "closesAt",  chainId: ACTIVE_CHAIN.id },
       { address, abi, functionName: "markCount", chainId: ACTIVE_CHAIN.id },
     ],
+    // Always fetch fresh — don't use stale cache for newly deployed contracts
+    query: { staleTime: 0 },
   })
 
-  if (!data) return null
+  // Wait for all four results — don't render with partial data
+  if (isLoading || !data || data.some(d => d.result === undefined)) {
+    return (
+      <div className="p-vare-card p-vare-card--loading">
+        <div className="p-vare-card-header">
+          <span className="p-vare-title" style={{ opacity: 0.3 }}>loading…</span>
+        </div>
+      </div>
+    )
+  }
 
   const title     = data[0].result as string
   const isOpen    = data[1].result as boolean

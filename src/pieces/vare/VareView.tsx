@@ -36,9 +36,12 @@ export function VareView({ address }: { address: `0x${string}` }) {
       { address, abi, functionName: "markCount", chainId: ACTIVE_CHAIN.id },
       { address, abi, functionName: "isClosed",  chainId: ACTIVE_CHAIN.id },
     ],
+    query: { staleTime: 0 },
   })
 
-  if (isLoading || !data) return <div className="p-card"><p className="p-sub">loading…</p></div>
+  if (isLoading || !data || data.some(d => d.result === undefined)) {
+    return <div className="p-card"><p className="p-sub">loading…</p></div>
+  }
 
   const vare: VareData = {
     title:     data[0].result as string,
@@ -177,7 +180,10 @@ function MarkList({ address, markCount }: { address: `0x${string}`; markCount: b
     chainId: ACTIVE_CHAIN.id,
   }))
 
-  const { data } = useReadContracts({ contracts, query: { enabled: count > 0 } })
+  const { data } = useReadContracts({
+    contracts,
+    query: { enabled: count > 0, staleTime: 0 },
+  })
 
   if (count === 0) return null
 
